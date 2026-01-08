@@ -2571,8 +2571,6 @@ mod tests {
     /// - Multi-client state synchronization
     #[test]
     fn test_concurrent_commit_race_conditions() {
-        use crate::test_util::{create_key_package_event, create_nostr_group_config_data};
-
         // Setup: Create Alice (admin) and Bob (admin)
         let alice_keys = Keys::generate();
         let bob_keys = Keys::generate();
@@ -2719,10 +2717,6 @@ mod tests {
     /// - State convergence across clients
     #[test]
     fn test_multi_client_message_synchronization() {
-        use crate::test_util::{
-            create_key_package_event, create_nostr_group_config_data, create_test_rumor,
-        };
-
         // Setup: Create Alice and Bob as admins
         let alice_keys = Keys::generate();
         let bob_keys = Keys::generate();
@@ -2903,10 +2897,6 @@ mod tests {
     /// - Clear error messages when lookback limit is exceeded
     #[test]
     fn test_epoch_lookback_limits() {
-        use crate::test_util::{
-            create_key_package_event, create_nostr_group_config_data, create_test_rumor,
-        };
-
         // Setup: Create Alice and Bob
         let alice_keys = Keys::generate();
         let bob_keys = Keys::generate();
@@ -3453,8 +3443,6 @@ mod tests {
     /// - No state corruption from unauthorized messages
     #[test]
     fn test_message_from_non_member_rejected() {
-        use crate::test_util::{create_key_package_event, create_nostr_group_config_data};
-
         // Create Alice (admin) and Bob (member)
         let alice_keys = Keys::generate();
         let bob_keys = Keys::generate();
@@ -3944,8 +3932,6 @@ mod tests {
     /// - Messages with mismatched pubkeys are rejected with AuthorMismatch error
     #[test]
     fn test_author_verification_binding() {
-        use crate::test_util::{create_key_package_event, create_nostr_group_config_data};
-
         // Setup: Create Alice and Bob
         let alice_keys = Keys::generate();
         let bob_keys = Keys::generate();
