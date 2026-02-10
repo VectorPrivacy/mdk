@@ -41,6 +41,7 @@
 
 ### Added
 
+- **Custom Message Sort Order**: `get_messages()` now supports custom sort orders via the `Pagination::sort_order` field. Added `get_last_message(group_id, sort_order)` method to retrieve the most recent message under a given sort order, enabling clients using `ProcessedAtFirst` ordering to get a consistent "last message" value. ([#171](https://github.com/marmot-protocol/mdk/pull/171))
 - **`create_key_package_for_event_with_options`**: New function that allows specifying whether to include the NIP-70 protected tag. Use this if you need to publish to relays that accept protected events. ([#173](https://github.com/marmot-protocol/mdk/pull/173), related: [#168](https://github.com/marmot-protocol/mdk/issues/168))
 - **MIP-04 Epoch Fallback for Media Decryption**: `decrypt_from_download` now resolves the correct decryption key via an O(1) epoch hint lookup instead of only using the current epoch's exporter secret. Added `NoExporterSecretForEpoch` variant to `EncryptedMediaError` for programmatic error matching. ([#167](https://github.com/marmot-protocol/mdk/pull/167))
 - **`PreviouslyFailed` Result Variant**: Added `MessageProcessingResult::PreviouslyFailed` variant to handle cases where a previously failed message arrives again but the MLS group ID cannot be extracted. This prevents crashes in client applications by returning a result instead of throwing an error. ([#165](https://github.com/marmot-protocol/mdk/pull/165), fixes [#154](https://github.com/marmot-protocol/mdk/issues/154), [#159](https://github.com/marmot-protocol/mdk/issues/159))
