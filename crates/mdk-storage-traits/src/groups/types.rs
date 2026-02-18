@@ -11,6 +11,51 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use super::error::GroupError;
 
+/// Tracks whether and when a self-update (key rotation) is needed or was
+/// last performed for this group.
+///
+/// - `Required`: The member must perform a self-update (e.g., after joining
+///   via welcome per MIP-02). Maps to `0` in storage.
+/// - `CompletedAt(Timestamp)`: The last self-update (or group creation) was
+///   at this time. Used for periodic rotation staleness checks (MIP-00).
+///   Maps to a non-zero timestamp in storage.
+///
+/// Every group always has a self-update state — group creators start with
+/// `CompletedAt(now)` since creating a group with a fresh key is effectively
+/// the first rotation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SelfUpdateState {
+    /// A self-update is required (post-join obligation per MIP-02).
+    Required,
+    /// The last self-update was successfully merged at this timestamp.
+    CompletedAt(Timestamp),
+}
+
+impl Serialize for SelfUpdateState {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            Self::Required => serializer.serialize_u64(0),
+            Self::CompletedAt(ts) => serializer.serialize_u64(ts.as_secs()),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for SelfUpdateState {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let secs: u64 = u64::deserialize(deserializer)?;
+        match secs {
+            0 => Ok(Self::Required),
+            _ => Ok(Self::CompletedAt(Timestamp::from_secs(secs))),
+        }
+    }
+}
+
 /// The state of the group, this matches the MLS group state
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum GroupState {
@@ -108,6 +153,10 @@ pub struct Group {
     pub epoch: u64,
     /// The state of the group
     pub state: GroupState,
+    /// Self-update (key rotation) tracking state.
+    ///
+    /// See [`SelfUpdateState`] for the possible values and their meanings.
+    pub self_update_state: SelfUpdateState,
 }
 
 impl Group {
@@ -199,6 +248,7 @@ mod tests {
             last_message_processed_at: None,
             epoch: 0,
             state: GroupState::Active,
+            self_update_state: SelfUpdateState::Required,
         }
     }
 
@@ -388,6 +438,7 @@ mod tests {
             last_message_processed_at: None,
             epoch: 0,
             state: GroupState::Active,
+            self_update_state: SelfUpdateState::Required,
         };
 
         let serialized = serde_json::to_value(&group).unwrap();
@@ -446,5 +497,21 @@ mod tests {
             deserialized.relay_url.to_string(),
             "wss://relay.example.com"
         );
+    }
+
+    #[test]
+    fn test_self_update_state_serde_roundtrip() {
+        // Required serializes to 0
+        let val = serde_json::to_value(SelfUpdateState::Required).unwrap();
+        assert_eq!(val, json!(0));
+        let rt: SelfUpdateState = serde_json::from_value(val).unwrap();
+        assert_eq!(rt, SelfUpdateState::Required);
+
+        // CompletedAt serializes to the timestamp seconds
+        let ts = Timestamp::from_secs(1_700_000_000);
+        let val = serde_json::to_value(SelfUpdateState::CompletedAt(ts)).unwrap();
+        assert_eq!(val, json!(1_700_000_000));
+        let rt: SelfUpdateState = serde_json::from_value(val).unwrap();
+        assert_eq!(rt, SelfUpdateState::CompletedAt(ts));
     }
 }

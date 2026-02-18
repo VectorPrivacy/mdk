@@ -5,7 +5,9 @@ use std::io::{Error as IoError, ErrorKind};
 use std::str::FromStr;
 
 use mdk_storage_traits::GroupId;
-use mdk_storage_traits::groups::types::{Group, GroupExporterSecret, GroupRelay, GroupState};
+use mdk_storage_traits::groups::types::{
+    Group, GroupExporterSecret, GroupRelay, GroupState, SelfUpdateState,
+};
 use mdk_storage_traits::messages::types::{
     Message, MessageState, ProcessedMessage, ProcessedMessageState,
 };
@@ -167,6 +169,11 @@ pub fn row_to_group(row: &Row) -> SqliteResult<Group> {
 
     let epoch: u64 = row.get("epoch")?;
 
+    let self_update_state: SelfUpdateState = match row.get::<_, u64>("last_self_update_at")? {
+        0 => SelfUpdateState::Required,
+        ts => SelfUpdateState::CompletedAt(Timestamp::from_secs(ts)),
+    };
+
     Ok(Group {
         mls_group_id,
         nostr_group_id,
@@ -181,6 +188,7 @@ pub fn row_to_group(row: &Row) -> SqliteResult<Group> {
         image_hash,
         image_key,
         image_nonce,
+        self_update_state,
     })
 }
 
@@ -429,7 +437,8 @@ mod tests {
                 last_message_at INTEGER,
                 last_message_processed_at INTEGER,
                 epoch INTEGER NOT NULL,
-                state TEXT NOT NULL
+                state TEXT NOT NULL,
+                last_self_update_at INTEGER NOT NULL DEFAULT 0
             )",
         )
         .unwrap();
@@ -444,7 +453,7 @@ mod tests {
         let valid_event_id = [0xabu8; 32];
 
         conn.execute(
-            "INSERT INTO groups VALUES (?, ?, ?, ?, NULL, NULL, NULL, ?, ?, NULL, NULL, ?, ?)",
+            "INSERT INTO groups VALUES (?, ?, ?, ?, NULL, NULL, NULL, ?, ?, NULL, NULL, ?, ?, 0)",
             rusqlite::params![
                 &[1u8, 2, 3, 4][..], // mls_group_id
                 &[0u8; 32][..],      // nostr_group_id
@@ -471,7 +480,7 @@ mod tests {
         let conn = create_test_db();
 
         conn.execute(
-            "INSERT INTO groups VALUES (?, ?, ?, ?, NULL, NULL, NULL, ?, NULL, NULL, NULL, ?, ?)",
+            "INSERT INTO groups VALUES (?, ?, ?, ?, NULL, NULL, NULL, ?, NULL, NULL, NULL, ?, ?, 0)",
             rusqlite::params![
                 &[1u8, 2, 3, 4][..], // mls_group_id
                 &[0u8; 32][..],      // nostr_group_id
@@ -500,7 +509,7 @@ mod tests {
         let invalid_event_id = [0xabu8; 16];
 
         conn.execute(
-            "INSERT INTO groups VALUES (?, ?, ?, ?, NULL, NULL, NULL, ?, ?, NULL, NULL, ?, ?)",
+            "INSERT INTO groups VALUES (?, ?, ?, ?, NULL, NULL, NULL, ?, ?, NULL, NULL, ?, ?, 0)",
             rusqlite::params![
                 &[1u8, 2, 3, 4][..],   // mls_group_id
                 &[0u8; 32][..],        // nostr_group_id
@@ -535,7 +544,7 @@ mod tests {
         let empty_blob: [u8; 0] = [];
 
         conn.execute(
-            "INSERT INTO groups VALUES (?, ?, ?, ?, NULL, NULL, NULL, ?, ?, NULL, NULL, ?, ?)",
+            "INSERT INTO groups VALUES (?, ?, ?, ?, NULL, NULL, NULL, ?, ?, NULL, NULL, ?, ?, 0)",
             rusqlite::params![
                 &[1u8, 2, 3, 4][..], // mls_group_id
                 &[0u8; 32][..],      // nostr_group_id

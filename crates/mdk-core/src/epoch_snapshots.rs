@@ -324,8 +324,14 @@ impl EpochSnapshotManager {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::collections::BTreeSet;
     use std::str::FromStr;
+
+    use mdk_storage_traits::groups::GroupStorage;
+    use mdk_storage_traits::groups::types::{Group, GroupState, SelfUpdateState};
+    use nostr::PublicKey;
+
+    use super::*;
 
     /// Helper to create a test group ID
     fn test_group_id(id: u8) -> GroupId {
@@ -627,11 +633,6 @@ mod tests {
         let storage = mdk_memory_storage::MdkMemoryStorage::default();
 
         // We need to set up the group in storage first
-        use mdk_storage_traits::groups::GroupStorage;
-        use mdk_storage_traits::groups::types::{Group, GroupState};
-        use nostr::PublicKey;
-        use std::collections::BTreeSet;
-
         let admin_pk = PublicKey::from_slice(&[2u8; 32]).unwrap();
         let mut admin_pubkeys = BTreeSet::new();
         admin_pubkeys.insert(admin_pk);
@@ -649,6 +650,7 @@ mod tests {
             image_key: None,
             image_nonce: None,
             state: GroupState::Active,
+            self_update_state: SelfUpdateState::Required,
         };
         storage.save_group(group).unwrap();
 
@@ -673,11 +675,6 @@ mod tests {
         let storage = mdk_memory_storage::MdkMemoryStorage::default();
 
         // Set up group in storage
-        use mdk_storage_traits::groups::GroupStorage;
-        use mdk_storage_traits::groups::types::{Group, GroupState};
-        use nostr::PublicKey;
-        use std::collections::BTreeSet;
-
         let admin_pk = PublicKey::from_slice(&[2u8; 32]).unwrap();
         let mut admin_pubkeys = BTreeSet::new();
         admin_pubkeys.insert(admin_pk);
@@ -695,6 +692,7 @@ mod tests {
             image_key: None,
             image_nonce: None,
             state: GroupState::Active,
+            self_update_state: SelfUpdateState::Required,
         };
         storage.save_group(group).unwrap();
 
@@ -826,11 +824,6 @@ mod tests {
         let storage = mdk_memory_storage::MdkMemoryStorage::default();
 
         // Set up group
-        use mdk_storage_traits::groups::GroupStorage;
-        use mdk_storage_traits::groups::types::{Group, GroupState};
-        use nostr::PublicKey;
-        use std::collections::BTreeSet;
-
         let admin_pk = PublicKey::from_slice(&[2u8; 32]).unwrap();
         let mut admin_pubkeys = BTreeSet::new();
         admin_pubkeys.insert(admin_pk);
@@ -848,6 +841,7 @@ mod tests {
             image_key: None,
             image_nonce: None,
             state: GroupState::Active,
+            self_update_state: SelfUpdateState::Required,
         };
         storage.save_group(group).unwrap();
 
@@ -932,11 +926,6 @@ mod tests {
         let group_id = test_group_id(42);
 
         // Set up group in storage
-        use mdk_storage_traits::groups::GroupStorage;
-        use mdk_storage_traits::groups::types::{Group, GroupState};
-        use nostr::PublicKey;
-        use std::collections::BTreeSet;
-
         let admin_pk = PublicKey::from_slice(&[2u8; 32]).unwrap();
         let mut admin_pubkeys = BTreeSet::new();
         admin_pubkeys.insert(admin_pk);
@@ -954,6 +943,7 @@ mod tests {
             image_key: None,
             image_nonce: None,
             state: GroupState::Active,
+            self_update_state: SelfUpdateState::Required,
         };
         storage.save_group(group).unwrap();
 

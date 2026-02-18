@@ -409,6 +409,24 @@ where
             .map_err(|e| Error::Group(e.to_string()))
     }
 
+    /// Returns the group IDs of active groups that need a self-update.
+    ///
+    /// A group needs a self-update if:
+    /// - `self_update_state` is `SelfUpdateState::Required` (post-join requirement, MIP-02), or
+    /// - `self_update_state` is `SelfUpdateState::CompletedAt` and the timestamp is older than `threshold_secs` (periodic rotation, MIP-00)
+    ///
+    /// # Arguments
+    /// * `threshold_secs` - Maximum age in seconds before a group's key rotation is considered stale
+    ///
+    /// # Returns
+    /// * `Ok(Vec<GroupId>)` - Group IDs needing self-update
+    /// * `Err(Error)` - If there is an error accessing storage
+    pub fn groups_needing_self_update(&self, threshold_secs: u64) -> Result<Vec<GroupId>, Error> {
+        self.storage()
+            .groups_needing_self_update(threshold_secs)
+            .map_err(|e| Error::Group(e.to_string()))
+    }
+
     /// Gets the public keys of all members in an MLS group
     ///
     /// # Arguments
@@ -1079,6 +1097,7 @@ where
             image_hash: config.image_hash,
             image_key: config.image_key.map(mdk_storage_traits::Secret::new),
             image_nonce: config.image_nonce.map(mdk_storage_traits::Secret::new),
+            self_update_state: group_types::SelfUpdateState::CompletedAt(Timestamp::now()),
         };
 
         self.storage().save_group(group.clone()).map_err(
@@ -1272,10 +1291,41 @@ where
     /// * Err(GroupError) - if something goes wrong
     pub fn merge_pending_commit(&self, group_id: &GroupId) -> Result<(), Error> {
         let mut mls_group = self.load_mls_group(group_id)?.ok_or(Error::GroupNotFound)?;
+
+        // Detect whether the pending commit is a self-update BEFORE merging,
+        // since merge_pending_commit() consumes the staged commit.
+        let is_self_update = mls_group.pending_commit().is_some_and(|staged_commit| {
+            // Must contain at least one update signal
+            let has_update_signal = staged_commit.update_path_leaf_node().is_some()
+                || staged_commit.update_proposals().next().is_some();
+            // No non-update proposals present (add/remove/psk/etc.).
+            // Note: `all()` is vacuously true on an empty iterator, which is
+            // the expected case for path-based self-updates where the update
+            // comes via `update_path_leaf_node()` rather than explicit Update
+            // proposals in `queued_proposals()`.
+            let no_non_update_proposals = staged_commit
+                .queued_proposals()
+                .all(|p| matches!(p.proposal(), Proposal::Update(_)));
+            has_update_signal && no_non_update_proposals
+        });
+
         mls_group.merge_pending_commit(&self.provider)?;
 
         // Sync the stored group metadata with the updated MLS group state
         self.sync_group_metadata_from_mls(group_id)?;
+
+        // If this was actually a self-update commit, record the timestamp.
+        // This correctly handles:
+        // - Post-join self-updates (transitions Required → CompletedAt)
+        // - Periodic rotation self-updates (updates CompletedAt timestamp)
+        // - Non-self-update commits (leaves self_update_state untouched)
+        if is_self_update {
+            let mut group = self.get_group(group_id)?.ok_or(Error::GroupNotFound)?;
+            group.self_update_state = group_types::SelfUpdateState::CompletedAt(Timestamp::now());
+            self.storage()
+                .save_group(group)
+                .map_err(|e| Error::Group(e.to_string()))?;
+        }
 
         Ok(())
     }

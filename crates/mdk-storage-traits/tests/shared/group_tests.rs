@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use mdk_storage_traits::GroupId;
 use mdk_storage_traits::groups::GroupStorage;
 use mdk_storage_traits::groups::error::GroupError;
-use mdk_storage_traits::groups::types::GroupExporterSecret;
+use mdk_storage_traits::groups::types::{GroupExporterSecret, GroupState, SelfUpdateState};
 use mdk_storage_traits::groups::{MessageSortOrder, Pagination};
 use mdk_storage_traits::messages::MessageStorage;
 use mdk_storage_traits::messages::types::{Message, MessageState};
@@ -731,4 +731,64 @@ where
             .last_message(&non_existent, MessageSortOrder::CreatedAtFirst)
             .is_err()
     );
+}
+
+/// Test `groups_needing_self_update()` query
+pub fn test_groups_needing_self_update<S>(storage: S)
+where
+    S: GroupStorage,
+{
+    // Group A: Required (just joined via welcome)
+    let mut group_a = create_test_group(GroupId::from_slice(&[1, 2, 3, 30]));
+    group_a.self_update_state = SelfUpdateState::Required;
+    storage.save_group(group_a.clone()).unwrap();
+
+    // Group B: CompletedAt 100 seconds ago (stale)
+    let mut group_b = create_test_group(GroupId::from_slice(&[1, 2, 3, 31]));
+    let now = Timestamp::now().as_secs();
+    group_b.self_update_state =
+        SelfUpdateState::CompletedAt(Timestamp::from_secs(now.saturating_sub(100)));
+    storage.save_group(group_b.clone()).unwrap();
+
+    // Group C: CompletedAt 5 seconds ago (fresh)
+    let mut group_c = create_test_group(GroupId::from_slice(&[1, 2, 3, 32]));
+    group_c.self_update_state =
+        SelfUpdateState::CompletedAt(Timestamp::from_secs(now.saturating_sub(5)));
+    storage.save_group(group_c.clone()).unwrap();
+
+    // Group D: inactive (should be excluded even if Required)
+    let mut group_d = create_test_group(GroupId::from_slice(&[1, 2, 3, 33]));
+    group_d.self_update_state = SelfUpdateState::Required;
+    group_d.state = GroupState::Inactive;
+    storage.save_group(group_d.clone()).unwrap();
+
+    // Group E: CompletedAt(now) (creator, fresh — no rotation needed yet)
+    let mut group_e = create_test_group(GroupId::from_slice(&[1, 2, 3, 34]));
+    group_e.self_update_state =
+        SelfUpdateState::CompletedAt(Timestamp::from_secs(now.saturating_sub(1)));
+    storage.save_group(group_e.clone()).unwrap();
+
+    // Threshold = 60 seconds: should return A (Required) and B (stale)
+    let needing = storage.groups_needing_self_update(60).unwrap();
+    assert!(
+        needing.contains(&group_a.mls_group_id),
+        "Group A should need self-update (Required)"
+    );
+    assert!(
+        needing.contains(&group_b.mls_group_id),
+        "Group B should need self-update (last update 100s ago > 60s threshold)"
+    );
+    assert!(
+        !needing.contains(&group_c.mls_group_id),
+        "Group C should NOT need self-update (last update 5s ago < 60s threshold)"
+    );
+    assert!(
+        !needing.contains(&group_d.mls_group_id),
+        "Group D should NOT be included (inactive)"
+    );
+    assert!(
+        !needing.contains(&group_e.mls_group_id),
+        "Group E should NOT need self-update (created 1s ago < 60s threshold)"
+    );
+    assert_eq!(needing.len(), 2);
 }

@@ -317,6 +317,7 @@ mod tests {
             image_hash: None,
             image_key: None,
             image_nonce: None,
+            self_update_state: SelfUpdateState::Required,
         }
     }
 
@@ -476,6 +477,7 @@ mod tests {
             image_hash: None,
             image_key: None,
             image_nonce: None,
+            self_update_state: SelfUpdateState::Required,
         };
 
         storage.save_group(group).unwrap();
@@ -601,6 +603,7 @@ mod tests {
             image_hash: None,
             image_key: None,
             image_nonce: None,
+            self_update_state: SelfUpdateState::Required,
         };
         storage.save_group(empty_group).unwrap();
 
@@ -717,6 +720,7 @@ mod tests {
             image_hash: None,
             image_key: None,
             image_nonce: None,
+            self_update_state: SelfUpdateState::Required,
         };
 
         storage.save_group(group1).unwrap();
@@ -738,6 +742,7 @@ mod tests {
             image_hash: None,
             image_key: None,
             image_nonce: None,
+            self_update_state: SelfUpdateState::Required,
         };
 
         // This should fail because nostr_group_id is already used by a different group
@@ -782,6 +787,7 @@ mod tests {
             image_hash: None,
             image_key: None,
             image_nonce: None,
+            self_update_state: SelfUpdateState::Required,
         };
 
         storage.save_group(group).unwrap();
@@ -809,6 +815,7 @@ mod tests {
             image_hash: None,
             image_key: None,
             image_nonce: None,
+            self_update_state: SelfUpdateState::Required,
         };
 
         storage.save_group(updated_group).unwrap();
@@ -854,6 +861,7 @@ mod tests {
             image_hash: None,
             image_key: None,
             image_nonce: None,
+            self_update_state: SelfUpdateState::Required,
         };
 
         storage.save_group(group).unwrap();
@@ -873,6 +881,7 @@ mod tests {
             image_hash: None,
             image_key: None,
             image_nonce: None,
+            self_update_state: SelfUpdateState::Required,
         };
 
         // This should succeed - updating the same group

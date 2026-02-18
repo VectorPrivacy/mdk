@@ -278,7 +278,7 @@ mod tests {
     use std::collections::BTreeSet;
 
     use mdk_storage_traits::groups::GroupStorage;
-    use mdk_storage_traits::groups::types::{Group, GroupState};
+    use mdk_storage_traits::groups::types::{Group, GroupState, SelfUpdateState};
     use nostr::Keys;
 
     use super::*;
@@ -304,6 +304,7 @@ mod tests {
             image_hash: None,
             image_key: None,
             image_nonce: None,
+            self_update_state: SelfUpdateState::Required,
         }
     }
 

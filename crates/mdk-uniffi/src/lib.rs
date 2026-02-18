@@ -449,6 +449,19 @@ impl Mdk {
         Ok(self.lock()?.get_group(&group_id)?.map(Group::from))
     }
 
+    /// Get group IDs that need a self-update (post-join or stale rotation).
+    pub fn groups_needing_self_update(
+        &self,
+        threshold_secs: u64,
+    ) -> Result<Vec<String>, MdkUniffiError> {
+        Ok(self
+            .lock()?
+            .groups_needing_self_update(threshold_secs)?
+            .into_iter()
+            .map(|id| hex::encode(id.as_slice()))
+            .collect())
+    }
+
     /// Get members of a group
     pub fn get_members(&self, mls_group_id: String) -> Result<Vec<String>, MdkUniffiError> {
         let group_id = parse_group_id(&mls_group_id)?;
@@ -1166,6 +1179,10 @@ pub struct Group {
     pub epoch: u64,
     /// Group state (e.g., "active", "archived")
     pub state: String,
+    /// Self-update tracking state.
+    /// - `"required"`: Must perform a post-join self-update (MIP-02).
+    /// - `"completed_at:<unix_timestamp>"`: Last self-update merged at this time (MIP-00).
+    pub self_update_state: String,
 }
 
 impl From<group_types::Group> for Group {
@@ -1184,6 +1201,12 @@ impl From<group_types::Group> for Group {
             last_message_processed_at: g.last_message_processed_at.map(|ts| ts.as_secs()),
             epoch: g.epoch,
             state: g.state.as_str().to_string(),
+            self_update_state: match g.self_update_state {
+                group_types::SelfUpdateState::Required => "required".to_string(),
+                group_types::SelfUpdateState::CompletedAt(ts) => {
+                    format!("completed_at:{}", ts.as_secs())
+                }
+            },
         }
     }
 }

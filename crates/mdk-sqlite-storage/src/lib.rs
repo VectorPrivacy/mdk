@@ -713,8 +713,8 @@ impl MdkSqliteStorage {
         let mut stmt = conn
             .prepare(
                 "SELECT mls_group_id, nostr_group_id, name, description, admin_pubkeys,
-                        last_message_id, last_message_at, epoch, state,
-                        image_hash, image_key, image_nonce
+                        last_message_id, last_message_at, last_message_processed_at, epoch, state,
+                        image_hash, image_key, image_nonce, last_self_update_at
                  FROM groups WHERE mls_group_id = ?",
             )
             .map_err(|e| Error::Database(e.to_string()))?;
@@ -732,14 +732,18 @@ impl MdkSqliteStorage {
                 row.get(5).map_err(|e| Error::Database(e.to_string()))?;
             let last_message_at: Option<i64> =
                 row.get(6).map_err(|e| Error::Database(e.to_string()))?;
-            let epoch: i64 = row.get(7).map_err(|e| Error::Database(e.to_string()))?;
-            let state: String = row.get(8).map_err(|e| Error::Database(e.to_string()))?;
+            let last_message_processed_at: Option<i64> =
+                row.get(7).map_err(|e| Error::Database(e.to_string()))?;
+            let epoch: i64 = row.get(8).map_err(|e| Error::Database(e.to_string()))?;
+            let state: String = row.get(9).map_err(|e| Error::Database(e.to_string()))?;
             let image_hash: Option<Vec<u8>> =
-                row.get(9).map_err(|e| Error::Database(e.to_string()))?;
-            let image_key: Option<Vec<u8>> =
                 row.get(10).map_err(|e| Error::Database(e.to_string()))?;
-            let image_nonce: Option<Vec<u8>> =
+            let image_key: Option<Vec<u8>> =
                 row.get(11).map_err(|e| Error::Database(e.to_string()))?;
+            let image_nonce: Option<Vec<u8>> =
+                row.get(12).map_err(|e| Error::Database(e.to_string()))?;
+            let last_self_update_at: i64 =
+                row.get(13).map_err(|e| Error::Database(e.to_string()))?;
 
             let row_key =
                 serde_json::to_vec(&mls_group_id).map_err(|e| Error::Database(e.to_string()))?;
@@ -750,11 +754,13 @@ impl MdkSqliteStorage {
                 &admin_pubkeys,
                 &last_message_id,
                 &last_message_at,
+                &last_message_processed_at,
                 epoch,
                 &state,
                 &image_hash,
                 &image_key,
                 &image_nonce,
+                &last_self_update_at,
             ))
             .map_err(|e| Error::Database(e.to_string()))?;
 
@@ -992,11 +998,13 @@ impl MdkSqliteStorage {
                     admin_pubkeys,
                     last_message_id,
                     last_message_at,
+                    last_message_processed_at,
                     epoch,
                     state,
                     image_hash,
                     image_key,
                     image_nonce,
+                    last_self_update_at,
                 ): (
                     Vec<u8>,
                     String,
@@ -1004,17 +1012,19 @@ impl MdkSqliteStorage {
                     String,
                     Option<Vec<u8>>,
                     Option<i64>,
+                    Option<i64>,
                     i64,
                     String,
                     Option<Vec<u8>>,
                     Option<Vec<u8>>,
                     Option<Vec<u8>>,
+                    i64,
                 ) = serde_json::from_slice(row_data).map_err(|e| Error::Database(e.to_string()))?;
                 conn.execute(
                     "INSERT INTO groups (mls_group_id, nostr_group_id, name, description, admin_pubkeys,
-                                        last_message_id, last_message_at, epoch, state,
-                                        image_hash, image_key, image_nonce)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                        last_message_id, last_message_at, last_message_processed_at, epoch, state,
+                                        image_hash, image_key, image_nonce, last_self_update_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                     rusqlite::params![
                         mls_group_id,
                         nostr_group_id,
@@ -1023,11 +1033,13 @@ impl MdkSqliteStorage {
                         admin_pubkeys,
                         last_message_id,
                         last_message_at,
+                        last_message_processed_at,
                         epoch,
                         state,
                         image_hash,
                         image_key,
-                        image_nonce
+                        image_nonce,
+                        last_self_update_at
                     ],
                 )
                 .map_err(|e| Error::Database(e.to_string()))?;
@@ -1909,7 +1921,9 @@ mod tests {
     use mdk_storage_traits::GroupId;
     use mdk_storage_traits::Secret;
     use mdk_storage_traits::groups::GroupStorage;
-    use mdk_storage_traits::groups::types::{Group, GroupExporterSecret, GroupState};
+    use mdk_storage_traits::groups::types::{
+        Group, GroupExporterSecret, GroupState, SelfUpdateState,
+    };
     use tempfile::tempdir;
 
     use super::*;
@@ -2017,6 +2031,7 @@ mod tests {
             image_hash: None,
             image_key: None,
             image_nonce: None,
+            self_update_state: SelfUpdateState::Required,
         };
 
         // Save the group
@@ -2231,6 +2246,7 @@ mod tests {
                     image_hash: None,
                     image_key: None,
                     image_nonce: None,
+                    self_update_state: SelfUpdateState::Required,
                 };
 
                 storage.save_group(group).unwrap();
@@ -2398,6 +2414,7 @@ mod tests {
                     image_hash: None,
                     image_key: None,
                     image_nonce: None,
+                    self_update_state: SelfUpdateState::Required,
                 };
                 storage.save_group(group).unwrap();
 
@@ -3250,7 +3267,9 @@ mod tests {
         use std::collections::BTreeSet;
 
         use mdk_storage_traits::groups::GroupStorage;
-        use mdk_storage_traits::groups::types::{Group, GroupExporterSecret, GroupState};
+        use mdk_storage_traits::groups::types::{
+            Group, GroupExporterSecret, GroupState, SelfUpdateState,
+        };
         use mdk_storage_traits::{GroupId, MdkStorageProvider, Secret};
 
         use super::*;
@@ -3270,6 +3289,7 @@ mod tests {
                 image_hash: None,
                 image_key: None,
                 image_nonce: None,
+                self_update_state: SelfUpdateState::Required,
             }
         }
 
@@ -3607,6 +3627,7 @@ mod tests {
                 image_hash: None,
                 image_key: None,
                 image_nonce: None,
+                self_update_state: SelfUpdateState::Required,
             };
             storage.save_group(group).unwrap();
 
@@ -3661,6 +3682,7 @@ mod tests {
                 image_hash: None,
                 image_key: None,
                 image_nonce: None,
+                self_update_state: SelfUpdateState::Required,
             };
             let g2 = Group {
                 mls_group_id: group2.clone(),
@@ -3709,6 +3731,7 @@ mod tests {
                 image_hash: None,
                 image_key: None,
                 image_nonce: None,
+                self_update_state: SelfUpdateState::Required,
             };
             storage.save_group(group).unwrap();
 
@@ -3754,6 +3777,7 @@ mod tests {
                 image_hash: None,
                 image_key: None,
                 image_nonce: None,
+                self_update_state: SelfUpdateState::Required,
             };
             storage.save_group(group).unwrap();
 
@@ -3797,6 +3821,7 @@ mod tests {
                 image_hash: None,
                 image_key: None,
                 image_nonce: None,
+                self_update_state: SelfUpdateState::Required,
             };
             storage.save_group(group).unwrap();
 
@@ -3861,6 +3886,7 @@ mod tests {
                 image_hash: None,
                 image_key: None,
                 image_nonce: None,
+                self_update_state: SelfUpdateState::Required,
             }
         }
 

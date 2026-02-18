@@ -9,6 +9,7 @@ use mdk_memory_storage::MdkMemoryStorage;
 use mdk_sqlite_storage::MdkSqliteStorage;
 use mdk_storage_traits::GroupId;
 use mdk_storage_traits::groups::GroupStorage;
+use mdk_storage_traits::groups::types::{Group, GroupState, SelfUpdateState};
 use nostr::RelayUrl;
 
 mod shared;
@@ -110,12 +111,7 @@ impl StorageTestHarness {
 }
 
 /// Helper to create a dummy group for testing
-fn create_test_group_for_cross_storage(
-    mls_group_id: &GroupId,
-    nostr_group_id: [u8; 32],
-) -> mdk_storage_traits::groups::types::Group {
-    use mdk_storage_traits::groups::types::{Group, GroupState};
-
+fn create_test_group_for_cross_storage(mls_group_id: &GroupId, nostr_group_id: [u8; 32]) -> Group {
     Group {
         mls_group_id: mls_group_id.clone(),
         nostr_group_id,
@@ -130,6 +126,7 @@ fn create_test_group_for_cross_storage(
         image_hash: None,
         image_key: None,
         image_nonce: None,
+        self_update_state: SelfUpdateState::Required,
     }
 }
 
